@@ -28,6 +28,14 @@ class CategoryUpdate(BaseModel):
     limit: str | None = None
     user_id: int | None = None
 
+class CategoryGet(BaseModel):
+    name: str | None = Field(None, min_length=1)
+    workspace_id: int | None = None
+    type: CategoryType | None = None
+    color: str | None = Field(None, min_length=1)
+    limit: str | None = None
+    user_id: int | None = None
+
 
 def serialize_batch(items: list[Category]) -> list[dict]:
     return [
@@ -94,3 +102,14 @@ async def get_categories(
         'items': serialize_batch(result),
         'total': 10
     }
+
+@router.get('/{category_id}', response_model=CategoryGet)
+async def get_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    query = await db.execute(select(Category).where(Category.id == category_id))
+    category = query.scalar_one_or_none()
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
+    return serialize(category)
