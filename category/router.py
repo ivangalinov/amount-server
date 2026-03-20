@@ -88,6 +88,16 @@ async def update_category(
     return serialize(category)
 
 
+@router.delete('/{category_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(category_id: int, db: AsyncSession = Depends(get_db)) -> None:
+    result = await db.execute(select(Category).where(Category.id == category_id))
+    category = result.scalar_one_or_none()
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
+    await db.delete(category)
+    await db.commit()
+
+
 @router.get('/')
 async def get_categories(
     category_type: CategoryType | None = Query(None, alias='type'),
