@@ -29,12 +29,11 @@ class CategoryUpdate(BaseModel):
     user_id: int | None = None
 
 class CategoryGet(BaseModel):
-    name: str | None = Field(None, min_length=1)
-    workspace_id: int | None = None
-    type: CategoryType | None = None
-    color: str | None = Field(None, min_length=1)
+    id: int
+    name: str
+    type: CategoryType
+    color: str
     limit: str | None = None
-    user_id: int | None = None
 
 
 def serialize_batch(items: list[Category]) -> list[dict]:
@@ -53,7 +52,7 @@ def serialize(item: Category) -> dict:
     }
 
 
-@router.post('/', status_code=status.HTTP_201_CREATED)
+@router.post('', status_code=status.HTTP_201_CREATED)
 async def create_category(body: CategoryCreate, db: AsyncSession = Depends(get_db)):
     category = Category(
         name=body.name,
@@ -98,7 +97,7 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_db)) 
     await db.commit()
 
 
-@router.get('/')
+@router.get('')
 async def get_categories(
     category_type: CategoryType | None = Query(None, alias='type'),
     db: AsyncSession = Depends(get_db),
