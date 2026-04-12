@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import pytest
 
 
@@ -14,8 +15,39 @@ def category_payload(workspace_id: int, **overrides):
 
 
 @pytest.mark.asyncio
-async def test_create_category(client, workspace_id):
-    r = await client.post("/category", json=category_payload(workspace_id))
+async def test_category_routes_require_auth(client):
+    r = await client.get("/category")
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_category_forbidden_foreign_workspace(
+    authenticated_client,
+    session_factory,
+):
+    async with session_factory() as session:
+        from workspace.model import Workspace
+
+        ws = Workspace(name="Other workspace")
+        session.add(ws)
+        await session.commit()
+        await session.refresh(ws)
+        foreign_id = ws.id
+
+    r = await authenticated_client.post(
+        "/category",
+        json=category_payload(foreign_id),
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Not a member of this workspace"
+
+
+@pytest.mark.asyncio
+async def test_create_category(authenticated_client, workspace_id):
+    r = await authenticated_client.post(
+        "/category",
+        json=category_payload(workspace_id),
+    )
     assert r.status_code == 201
     body = r.json()
     assert body["name"] == "Food"
@@ -26,20 +58,26 @@ async def test_create_category(client, workspace_id):
 
 
 @pytest.mark.asyncio
-async def test_get_categories_empty(client):
-    r = await client.get("/category")
+async def test_get_categories_empty(authenticated_client):
+    r = await authenticated_client.get("/category")
     assert r.status_code == 200
     data = r.json()
     assert data["items"] == []
-    assert data["total"] == 10
+    assert data["total"] == 0
 
 
 @pytest.mark.asyncio
-async def test_get_categories_filter_by_type(client, workspace_id):
-    await client.post("/category", json=category_payload(workspace_id, type="income"))
-    await client.post("/category", json=category_payload(workspace_id, name="Other", type="expense"))
+async def test_get_categories_filter_by_type(authenticated_client, workspace_id):
+    await authenticated_client.post(
+        "/category",
+        json=category_payload(workspace_id, type="income"),
+    )
+    await authenticated_client.post(
+        "/category",
+        json=category_payload(workspace_id, name="Other", type="expense"),
+    )
 
-    r = await client.get("/category", params={"type": "income"})
+    r = await authenticated_client.get("/category", params={"type": "income"})
     assert r.status_code == 200
     items = r.json()["items"]
     assert len(items) == 1
@@ -48,11 +86,16 @@ async def test_get_categories_filter_by_type(client, workspace_id):
 
 
 @pytest.mark.asyncio
-async def test_get_category_by_id(client, workspace_id):
-    created = (await client.post("/category", json=category_payload(workspace_id))).json()
+async def test_get_category_by_id(authenticated_client, workspace_id):
+    created = (
+        await authenticated_client.post(
+            "/category",
+            json=category_payload(workspace_id),
+        )
+    ).json()
     cid = created["id"]
 
-    r = await client.get(f"/category/{cid}")
+    r = await authenticated_client.get(f"/category/{cid}")
     assert r.status_code == 200
     body = r.json()
     assert body["id"] == cid
@@ -61,18 +104,26 @@ async def test_get_category_by_id(client, workspace_id):
 
 
 @pytest.mark.asyncio
-async def test_get_category_not_found(client):
-    r = await client.get("/category/99999")
+async def test_get_category_not_found(authenticated_client):
+    r = await authenticated_client.get("/category/99999")
     assert r.status_code == 404
     assert r.json()["detail"] == "Category not found"
 
 
 @pytest.mark.asyncio
-async def test_update_category(client, workspace_id):
-    created = (await client.post("/category", json=category_payload(workspace_id))).json()
+async def test_update_category(authenticated_client, workspace_id):
+    created = (
+        await authenticated_client.post(
+            "/category",
+            json=category_payload(workspace_id),
+        )
+    ).json()
     cid = created["id"]
 
-    r = await client.patch(f"/category/{cid}", json={"name": "Updated", "color": "#000000"})
+    r = await authenticated_client.patch(
+        f"/category/{cid}",
+        json={"name": "Updated", "color": "#000000"},
+    )
     assert r.status_code == 200
     body = r.json()
     assert body["name"] == "Updated"
@@ -81,25 +132,30 @@ async def test_update_category(client, workspace_id):
 
 
 @pytest.mark.asyncio
-async def test_update_category_not_found(client):
-    r = await client.patch("/category/99999", json={"name": "X"})
+async def test_update_category_not_found(authenticated_client):
+    r = await authenticated_client.patch("/category/99999", json={"name": "X"})
     assert r.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_category(client, workspace_id):
-    created = (await client.post("/category", json=category_payload(workspace_id))).json()
+async def test_delete_category(authenticated_client, workspace_id):
+    created = (
+        await authenticated_client.post(
+            "/category",
+            json=category_payload(workspace_id),
+        )
+    ).json()
     cid = created["id"]
 
-    r = await client.delete(f"/category/{cid}")
+    r = await authenticated_client.delete(f"/category/{cid}")
     assert r.status_code == 204
     assert r.content == b""
 
-    r2 = await client.get(f"/category/{cid}")
+    r2 = await authenticated_client.get(f"/category/{cid}")
     assert r2.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_category_not_found(client):
-    r = await client.delete("/category/99999")
+async def test_delete_category_not_found(authenticated_client):
+    r = await authenticated_client.delete("/category/99999")
     assert r.status_code == 404

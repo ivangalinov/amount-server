@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 
-from database import init_db
+from auth import router as auth_router
 from category import router as category_router
+from database import init_db
 
 app = FastAPI(title="Amount API")
 
@@ -9,6 +10,7 @@ app = FastAPI(title="Amount API")
 # или не показывает операции. 3.0.2 — официально описанный в FastAPI обходной путь.
 app.openapi_version = "3.0.2"
 
+app.include_router(auth_router)
 app.include_router(category_router)
 
 @app.on_event("startup")

@@ -17,20 +17,53 @@ source .amount/bin/activate   # Linux/macOS
 ### Установка зависимостей
 
 ```bash
-pip install fastapi "sqlalchemy[asyncio]" asyncpg uvicorn alembic
+pip install -r requirements.txt
 ```
+
+(Для тестов: `pip install -r requirements-dev.txt`.)
 
 ### Переменные окружения
 
-| Переменная      | Описание                    | По умолчанию |
-|-----------------|----------------------------|--------------|
-| `DATABASE_URL`  | URL подключения к PostgreSQL (asyncpg) | `postgresql+asyncpg://postgres:postgres@localhost:5432/amount` |
+| Переменная | Описание | По умолчанию |
+|------------|----------|--------------|
+| `DATABASE_URL` | URL подключения к PostgreSQL (asyncpg) | `postgresql+asyncpg://postgres:postgres@localhost:5432/amount` |
+| `JWT_SECRET` | Секрет подписи JWT; в продакшене — длинная случайная строка | значение для разработки в коде |
+| `JWT_ALGORITHM` | Алгоритм JWT | `HS256` |
+| `JWT_EXPIRE_MINUTES` | Время жизни токена (минуты) | `10080` (7 суток) |
+| `AUTH_COOKIE_NAME` | Имя httpOnly-cookie с токеном | `access_token` |
+| `AUTH_COOKIE_SECURE` | Отдавать cookie только по HTTPS | `false` |
+| `AUTH_COOKIE_SAMESITE` | `lax` / `strict` / `none` | `lax` |
+
+Параметры JWT и cookie читаются из окружения и при наличии `.env` в каталоге сервера.
 
 Пример для `.env` или экспорта:
 
 ```bash
 export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/amount"
+export JWT_SECRET="замените-на-длинную-случайную-строку"
 ```
+
+---
+
+## Авторизация
+
+Регистрация и вход по **email** и **паролю**; подтверждение почты не используется.
+
+- Email приводится к виду `trim` + нижний регистр, в БД уникален.
+- Пароль хранится как **bcrypt**-хеш.
+- После **`POST /auth/register`** или **`POST /auth/login`** клиент получает **httpOnly** cookie с JWT.
+- **`GET /auth/me`** — текущий пользователь (нужна cookie).
+- **`POST /auth/logout`** — сброс cookie (`204`).
+- После **регистрации** у пользователя всегда есть **хотя бы один workspace**; при **входе** для «старых» пользователей без workspace он создаётся автоматически.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/auth/register` | JSON: `email`, `password` (мин. 8 символов), опционально `name`. Ответ `201` + cookie. Занятый email — `409`. Создаётся **первый workspace** (`{name} — workspace`) и связь в `workspace_users`. |
+| `POST` | `/auth/login` | JSON: `email`, `password`. Ошибка — `401`. Если у пользователя ещё нет workspace (старые данные), создаётся такой же дефолтный workspace. |
+| `POST` | `/auth/logout` | `204`, cookie удаляется. |
+| `GET` | `/auth/me` | Профиль (`id`, `name`, `email`) без пароля; без сессии — `401`. |
+
+Эндпоинты **`/category`** требуют той же cookie с JWT. Поле **`user_id` в теле запросов не используется** — автор категории берётся из сессии. Доступ только к workspace, где пользователь состоит в `workspace_users` (чужой workspace — `403` при создании, чужая категория — ответ `404`).
 
 ---
 
@@ -137,7 +170,12 @@ alembic revision -m "описание изменений"
 amount-server/
 ├── main.py           # Точка входа FastAPI, эндпоинты
 ├── database.py       # Подключение к БД, engine, сессия, init_db
-├── models.py         # Модели SQLAlchemy
+├── auth/             # JWT, cookie, роуты /auth/*
+├── category/         # Категории
+├── user/             # Модель пользователя
+├── workspace/        # Рабочие пространства
+├── operation/        # Операции
+├── models/           # Сборка моделей для Alembic / init_db
 ├── alembic.ini       # Конфиг Alembic
 └── migrations/       # Скрипты миграций
     ├── env.py        # Окружение миграций (async)
