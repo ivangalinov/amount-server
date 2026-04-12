@@ -19,6 +19,7 @@ from sqlalchemy.pool import StaticPool
 from auth.router import router as auth_router
 from auth.security import hash_password
 from category.router import router as category_router
+from operation.router import router as operation_router
 from database import Base, get_db
 from user.model import User
 from workspace.model import Workspace, WorkspaceUser
@@ -75,6 +76,7 @@ async def app(session_factory):
     application = FastAPI()
     application.include_router(auth_router)
     application.include_router(category_router)
+    application.include_router(operation_router)
     application.dependency_overrides[get_db] = override_get_db
     return application
 

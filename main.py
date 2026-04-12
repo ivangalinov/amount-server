@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from auth import router as auth_router
 from category import router as category_router
 from database import init_db
+from operation import router as operation_router
 
 app = FastAPI(title="Amount API")
 
@@ -12,6 +13,7 @@ app.openapi_version = "3.0.2"
 
 app.include_router(auth_router)
 app.include_router(category_router)
+app.include_router(operation_router)
 
 @app.on_event("startup")
 async def on_startup() -> None:

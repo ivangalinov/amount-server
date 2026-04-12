@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth.deps import get_current_user
 from database import get_db
 from user.model import User
-from workspace.model import WorkspaceUser
+from workspace_access import ensure_workspace_member, user_workspace_ids
 
 from .model import Category, CategoryType
 
@@ -43,25 +43,6 @@ class CategoryGet(BaseModel):
     workspace_id: int
 
 
-async def _user_workspace_ids(db: AsyncSession, user_id: int) -> set[int]:
-    r = await db.execute(
-        select(WorkspaceUser.workspace_id).where(WorkspaceUser.user_id == user_id)
-    )
-    return set(r.scalars().all())
-
-
-async def _ensure_workspace_member(
-    db: AsyncSession,
-    user: User,
-    workspace_id: int,
-) -> None:
-    if workspace_id not in await _user_workspace_ids(db, user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
-
-
 async def _get_category_for_user(
     db: AsyncSession,
     user: User,
@@ -74,7 +55,7 @@ async def _get_category_for_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Category not found",
         )
-    allowed = await _user_workspace_ids(db, user.id)
+    allowed = await user_workspace_ids(db, user.id)
     if category.workspace_id not in allowed:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -104,7 +85,7 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    await _ensure_workspace_member(db, current_user, body.workspace_id)
+    await ensure_workspace_member(db, current_user, body.workspace_id)
     category = Category(
         name=body.name,
         workspace_id=body.workspace_id,
@@ -131,7 +112,7 @@ async def update_category(
     if "workspace_id" in data:
         new_ws = data["workspace_id"]
         if new_ws is not None:
-            await _ensure_workspace_member(db, current_user, new_ws)
+            await ensure_workspace_member(db, current_user, new_ws)
     for key, value in data.items():
         setattr(category, key, value)
     await db.commit()
@@ -156,7 +137,7 @@ async def get_categories(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    allowed = await _user_workspace_ids(db, current_user.id)
+    allowed = await user_workspace_ids(db, current_user.id)
     if not allowed:
         return {"items": [], "total": 0}
     query = select(Category).where(Category.workspace_id.in_(allowed))
