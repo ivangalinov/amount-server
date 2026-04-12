@@ -40,6 +40,7 @@ class CategoryGet(BaseModel):
     type: CategoryType
     color: str
     limit: str | None = None
+    workspace_id: int
 
 
 async def _user_workspace_ids(db: AsyncSession, user_id: int) -> set[int]:
@@ -93,6 +94,7 @@ def serialize(item: Category) -> dict:
         "type": item.type,
         "color": item.color,
         "limit": item.limit,
+        "workspace_id": item.workspace_id,
     }
 
 

@@ -13,7 +13,11 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://postgres:postgres@localhost:5432/amount",
 )
 
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+# Логирование всех SQL в stdout (уровень INFO у логгера sqlalchemy.engine).
+# Отключить: SQL_ECHO=false
+_sql_echo = os.getenv("SQL_ECHO", "true").strip().lower() in ("1", "true", "yes", "on")
+
+engine = create_async_engine(DATABASE_URL, echo=_sql_echo, future=True)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

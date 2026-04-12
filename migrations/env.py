@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_engine_from_config
 from database import Base, DATABASE_URL
 import models  # noqa: F401  регистрируем все модели в Base.metadata
 
+_sql_echo = os.getenv("SQL_ECHO", "true").strip().lower() in ("1", "true", "yes", "on")
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -47,8 +49,11 @@ def run_sync_migrations(connection: Connection) -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode with async engine."""
+    section = dict(config.get_section(config.config_ini_section, {}) or {})
+    if _sql_echo:
+        section["sqlalchemy.echo"] = "true"
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
