@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_current_user
-from category.model import Category
+from category import Category, Repository as CategoryRepository, CategoryType
 from database import get_db
 from operation.model import Operation
 from user.model import User
@@ -113,11 +113,19 @@ async def create_operation(
         created_at = created_at.replace(tzinfo=UTC)
     if created_at is None:
         created_at = datetime.now(UTC)
+
+    # amount = 
+    # category = 
+    category = await CategoryRepository(db).get_by_id(body.category_id)
+    amount = body.amount
+    if category.type == CategoryType.EXPENSE.value and amount > 0:
+        amount *= -1
+
     op = Operation(
         workspace_id=body.workspace_id,
         category_id=body.category_id,
         title=body.title,
-        amount=body.amount,
+        amount=amount,
         user_id=current_user.id,
         created=created_at,
     )
@@ -200,6 +208,12 @@ async def update_operation(
         c = data["created"]
         if c.tzinfo is None:
             data["created"] = c.replace(tzinfo=UTC)
+
+    if amount := data['amount']:
+        category = await CategoryRepository(db).get_by_id(op.category_id)
+        if category.type == CategoryType.EXPENSE.value and amount > 0:
+            data['amount'] *= -1
+
     for key, value in data.items():
         setattr(op, key, value)
     await db.commit()

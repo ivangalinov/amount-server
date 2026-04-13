@@ -40,6 +40,59 @@ async def test_create_operation(authenticated_client, workspace_id):
     assert "user_id" in body
     assert "created" in body
 
+@pytest.mark.asyncio
+async def test_create_operation_with_expence_category(authenticated_client, workspace_id):
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="Food")
+        )
+    ).json()["id"]
+
+    r = await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cid,
+            "title": "Обед",
+            "amount": 500,
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["title"] == "Обед"
+    assert body["amount"] == -500
+    assert body["category_id"] == cid
+    assert body["workspace_id"] == workspace_id
+    assert "user_id" in body
+    assert "created" in body
+
+
+@pytest.mark.asyncio
+async def test_create_operation_with_income_category(authenticated_client, workspace_id):
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="Food", type='income')
+        )
+    ).json()["id"]
+
+    r = await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cid,
+            "title": "Обед",
+            "amount": 500,
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["title"] == "Обед"
+    assert body["amount"] == 500
+    assert body["category_id"] == cid
+    assert body["workspace_id"] == workspace_id
+    assert "user_id" in body
+    assert "created" in body
+
 
 @pytest.mark.asyncio
 async def test_list_operations_filter_and_total(authenticated_client, workspace_id):
@@ -187,11 +240,45 @@ async def test_patch_and_delete_operation(authenticated_client, workspace_id):
 
     pr = await authenticated_client.patch(
         f"/operation/{oid}",
+        json={"title": "New", "amount": -99},
+    )
+    assert pr.status_code == 200
+    assert pr.json()["title"] == "New"
+    assert pr.json()["amount"] == -99
+
+    dr = await authenticated_client.delete(f"/operation/{oid}")
+    assert dr.status_code == 204
+
+    gr = await authenticated_client.get(f"/operation/{oid}")
+    assert gr.status_code == 404
+
+@pytest.mark.asyncio
+async def test_patch_expense_category(authenticated_client, workspace_id):
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id)
+        )
+    ).json()["id"]
+    created = (
+        await authenticated_client.post(
+            "/operation",
+            json={
+                "workspace_id": workspace_id,
+                "category_id": cid,
+                "title": "Old",
+                "amount": -10,
+            },
+        )
+    ).json()
+    oid = created["id"]
+
+    pr = await authenticated_client.patch(
+        f"/operation/{oid}",
         json={"title": "New", "amount": 99},
     )
     assert pr.status_code == 200
     assert pr.json()["title"] == "New"
-    assert pr.json()["amount"] == 99
+    assert pr.json()["amount"] == -99
 
     dr = await authenticated_client.delete(f"/operation/{oid}")
     assert dr.status_code == 204
