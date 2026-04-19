@@ -5,6 +5,7 @@ from category import router as category_router
 from database import init_db
 from operation import router as operation_router
 from stats import router as stats_router
+from workspace import router as wp_router
 
 app = FastAPI(title="Amount API")
 
@@ -16,6 +17,7 @@ app.include_router(auth_router)
 app.include_router(category_router)
 app.include_router(operation_router)
 app.include_router(stats_router)
+app.include_router(wp_router)
 
 @app.on_event("startup")
 async def on_startup() -> None:
