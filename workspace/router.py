@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.deps import get_current_user
 from database import get_db
+from auth.deps import get_current_user
 from user.model import User
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import and_, func, select, any_
-from sqlalchemy.orm import selectinload
-from .model import Workspace
+from .model import WorkspaceUser, Workspace
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
 
@@ -17,6 +15,23 @@ def serialize_user(user: User) -> dict:
         'name': user.name,
     }
 
+@router.get('/active')
+async def get_active_workspace(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    subquery = select(WorkspaceUser.workspace_id).where(WorkspaceUser.user_id == current_user.id)
+    workspace = (await db.execute(select(Workspace).where(
+        Workspace.id == subquery
+    ))).scalar_one()
+
+    print(workspace)
+
+    return {
+        'id': workspace.id,
+        'name': workspace.name,
+    }
+
 
 @router.get('/users')
 async def get_workspace_users(
@@ -24,16 +39,23 @@ async def get_workspace_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    query_result = await db.execute(select(Workspace).where(Workspace.id == workspace_id).options(selectinload(Workspace.users)))
 
-    wp = query_result.scalar_one_or_none()
+    relation_subquery = select(WorkspaceUser.user_id).where(
+        WorkspaceUser.workspace_id == workspace_id
+    ).subquery()
 
-    users = wp.users
+    query = select(User).where(
+        User.id == relation_subquery
+    )
 
-    if current_user.id not in [u.id for u in users]:
+    users = list((await db.execute(query)).scalars())
+
+
+    if current_user.id not in map(lambda u: u.id, users):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-        )
+        )    
+
     return {
         'items': [serialize_user(u) for u in users]
     }

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_current_user
@@ -53,12 +54,16 @@ class OperationUpdate(BaseModel):
 
 
 def serialize(op: Operation) -> dict:
+    # print(op.category.name)
     return {
         "id": op.id,
         "amount": op.amount,
         "category_id": op.category_id,
+        "category_name": op.category.name,
+        "category_color": op.category.color,
         "title": op.title,
         "user_id": op.user_id,
+        "user_name": op.user.name,
         "workspace_id": op.workspace_id,
         "created": op.created.isoformat(),
     }
@@ -174,6 +179,20 @@ async def list_operations(
         .order_by(Operation.created.desc())
         .offset(offset)
         .limit(limit)
+        .options(
+            joinedload(
+                Operation.user
+            ).load_only(
+                User.name
+            )
+        ).options(
+            joinedload(
+                Operation.category
+            ).load_only(
+                Category.name,
+                Category.color
+            )
+        )
     )
     rows = list_r.scalars().all()
     return {"items": [serialize(o) for o in rows], "total": total}

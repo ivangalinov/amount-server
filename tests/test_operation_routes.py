@@ -98,7 +98,7 @@ async def test_create_operation_with_income_category(authenticated_client, works
 async def test_list_operations_filter_and_total(authenticated_client, workspace_id):
     cid = (
         await authenticated_client.post(
-            "/category", json=category_json(workspace_id, name="A")
+            "/category", json=category_json(workspace_id, name="A", color='#000')
         )
     ).json()["id"]
     await authenticated_client.post(
@@ -128,6 +128,10 @@ async def test_list_operations_filter_and_total(authenticated_client, workspace_
     assert data["total"] == 2
     assert len(data["items"]) == 2
     assert data["items"][0]["title"] in ("Two", "One")  # desc by created
+
+    assert data["items"][0]["user_name"] == 'Category Test User'
+    assert data["items"][0]["category_name"] == 'A'
+    assert data["items"][0]["category_color"] == '#000'
 
     r2 = await authenticated_client.get(
         "/operation",
