@@ -26,6 +26,4 @@ async def get_workspace_users(
 
     result = query_result.scalars()
 
-    # users = list(filter(lambda u: u.wos))
-
     return [serialize(u) for u in result]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from category.model import CategoryType
 
 
 def category_json(workspace_id: int, **overrides):
@@ -95,7 +96,7 @@ async def test_create_operation_with_income_category(authenticated_client, works
 
 
 @pytest.mark.asyncio
-async def test_list_operations_filter_and_total(authenticated_client, workspace_id):
+async def test_list_operations_filter_and_more(authenticated_client, workspace_id):
     cid = (
         await authenticated_client.post(
             "/category", json=category_json(workspace_id, name="A", color='#000')
@@ -120,14 +121,24 @@ async def test_list_operations_filter_and_total(authenticated_client, workspace_
         },
     )
 
+    await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cid,
+            "title": "Three",
+            "amount": -50,
+        },
+    )
+
     r = await authenticated_client.get(
         "/operation", params={"workspace_id": workspace_id}
     )
     assert r.status_code == 200
     data = r.json()
-    assert data["total"] == 2
-    assert len(data["items"]) == 2
-    assert data["items"][0]["title"] in ("Two", "One")  # desc by created
+    assert data["more"] is False
+    assert len(data["items"]) == 3
+    assert data["items"][0]["title"] == "Three"  # desc by created
 
     assert data["items"][0]["user_name"] == 'Category Test User'
     assert data["items"][0]["category_name"] == 'A'
@@ -137,7 +148,91 @@ async def test_list_operations_filter_and_total(authenticated_client, workspace_
         "/operation",
         params={"workspace_id": workspace_id, "category_id": cid},
     )
-    assert r2.json()["total"] == 2
+    assert r2.json()["more"] is False
+
+
+    r3 = await authenticated_client.get(
+        '/operation',
+        params={'workspace_id': workspace_id, 'limit': 2}
+    )
+
+    assert r3.status_code == 200
+    assert r3.json()['more'] is True
+    assert len(r3.json()['items']) == 2
+
+
+    r4 = await authenticated_client.get(
+        '/operation',
+        params={'workspace_id': workspace_id, 'limit': 2, 'page': 1}
+    )
+
+    assert r4.status_code == 200
+    assert r4.json()['more'] is False
+    assert len(r3.json()['items']) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_operations_filter_by_category_type(authenticated_client, workspace_id):
+    cat_expense = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="A", color='#000', type=CategoryType.EXPENSE)
+        )
+    ).json()["id"]
+
+    cat_income = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="A", color='#000', type=CategoryType.INCOME)
+        )
+    ).json()["id"]
+
+    await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cat_expense,
+            "title": "One",
+            "amount": -100,
+        },
+    )
+    await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cat_income,
+            "title": "Two",
+            "amount": 50,
+        },
+    )
+
+    await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cat_income,
+            "title": "Three",
+            "amount": 50,
+        },
+    )
+
+    response_income = await authenticated_client.get(
+        '/operation',
+        params={'workspace_id': workspace_id, 'type': 'income'}
+    )
+
+    assert response_income.status_code == 200
+    income_json = response_income.json()
+    assert income_json['more'] is False
+    assert len(income_json['items']) == 2
+
+    response_income = await authenticated_client.get(
+        '/operation',
+        params={'workspace_id': workspace_id, 'type': 'expense'}
+    )
+
+    assert response_income.status_code == 200
+    income_json = response_income.json()
+    assert income_json['more'] is False
+    assert len(income_json['items']) == 1
 
 
 @pytest.mark.asyncio

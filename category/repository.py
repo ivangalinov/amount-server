@@ -10,6 +10,6 @@ class CategoryRepository:
     def __init__(self, db: AsyncSession):
         self.__db = db
 
-    async def get_by_id(self, key: int):
+    async def get_by_id(self, key: int) -> Category | None:
         data_set = await self.__db.execute(select(Category).where(Category.id == key))
         return data_set.scalar_one_or_none()

@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import random
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import and_, func, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_current_user
 from category import Category, Repository as CategoryRepository, CategoryType
 from database import get_db
 from operation.model import Operation
+from workspace.model import Workspace, WorkspaceUser
 from user.model import User
 from workspace_access import ensure_workspace_member, user_workspace_ids
+from .repository import OperationReposotory
 
 router = APIRouter(prefix="/operation", tags=["operation"])
 
@@ -54,7 +56,6 @@ class OperationUpdate(BaseModel):
 
 
 def serialize(op: Operation) -> dict:
-    # print(op.category.name)
     return {
         "id": op.id,
         "amount": op.amount,
@@ -148,54 +149,34 @@ async def list_operations(
     date_from: datetime | None = Query(None),
     date_to: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    type: CategoryType = Query(None),
+    page: int = Query(0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     await ensure_workspace_member(db, current_user, workspace_id)
 
-    conditions = [Operation.workspace_id == workspace_id]
-    if category_id is not None:
-        conditions.append(Operation.category_id == category_id)
-    if user_id is not None:
-        conditions.append(Operation.user_id == user_id)
-    if date_from is not None:
-        df = date_from if date_from.tzinfo else date_from.replace(tzinfo=UTC)
-        conditions.append(Operation.created >= df)
-    if date_to is not None:
-        dt = date_to if date_to.tzinfo else date_to.replace(tzinfo=UTC)
-        conditions.append(Operation.created <= dt)
+    repo = OperationReposotory(db)
 
-    filt = and_(*conditions)
-
-    count_r = await db.execute(
-        select(func.count()).select_from(Operation).where(filt)
-    )
-    total = int(count_r.scalar_one())
-
-    list_r = await db.execute(
-        select(Operation)
-        .where(filt)
-        .order_by(Operation.created.desc())
-        .offset(offset)
-        .limit(limit)
-        .options(
-            joinedload(
-                Operation.user
-            ).load_only(
-                User.name
-            )
-        ).options(
-            joinedload(
-                Operation.category
-            ).load_only(
-                Category.name,
-                Category.color
-            )
+    result = await repo.get_list(
+        dict(
+            workspace_id=workspace_id,
+            category_id=category_id,
+            user_id=user_id,
+            date_from=date_from,
+            date_to=date_to,
+            type=type,
+        ),
+        dict(
+            limit=limit,
+            page=page
         )
     )
-    rows = list_r.scalars().all()
-    return {"items": [serialize(o) for o in rows], "total": total}
+
+    return dict(
+        items=[serialize(i) for i in result['items']],
+        more=result['more']
+    )
 
 
 @router.get("/{operation_id}")
@@ -248,4 +229,34 @@ async def delete_operation(
 ) -> None:
     op = await _get_operation_for_user(db, current_user, operation_id)
     await db.delete(op)
+    await db.commit()
+
+
+@router.post('/mock', status_code=status.HTTP_201_CREATED)
+async def create_mocks(
+    db: AsyncSession = Depends(get_db),
+    # current_user: User = Depends(get_current_user)
+) -> None:
+    category = (await db.execute(select(Category.id, Category.type).where(Category.type == CategoryType.INCOME).limit(1))).one()
+    user: User = (await db.execute(select(User.id).limit(1))).one_or_none()
+    subquery = select(WorkspaceUser.workspace_id).where(WorkspaceUser.user_id == user.id)
+    workspace = (await db.execute(select(Workspace).where(
+        Workspace.id == subquery
+    ))).scalar_one()
+
+    opts: list[Operation] = []
+
+    for i in range(10_000):
+        amount = random.randint(100, 1000)
+        if category.type == CategoryType.EXPENSE:
+            amount *= -1
+        op = Operation(
+            workspace_id=workspace.id,
+            category_id=category.id,
+            title=f'Test-{i}',
+            amount=amount,
+            user_id=user.id
+        )
+        opts.append(op)
+    db.add_all(opts)
     await db.commit()

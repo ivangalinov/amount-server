@@ -25,8 +25,6 @@ async def get_active_workspace(
         Workspace.id == subquery
     ))).scalar_one()
 
-    print(workspace)
-
     return {
         'id': workspace.id,
         'name': workspace.name,
