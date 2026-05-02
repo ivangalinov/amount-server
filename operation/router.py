@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import random
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from operation.model import Operation
 from workspace.model import Workspace, WorkspaceUser
 from user.model import User
 from workspace_access import ensure_workspace_member, user_workspace_ids
+from .import_pdf import OperationImport
 from .repository import OperationReposotory
 
 router = APIRouter(prefix="/operation", tags=["operation"])
@@ -230,6 +231,23 @@ async def delete_operation(
     op = await _get_operation_for_user(db, current_user, operation_id)
     await db.delete(op)
     await db.commit()
+
+
+@router.post('/import', status_code=status.HTTP_200_OK)
+async def batch_import(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    content = await file.read()
+    # print(co)
+    batch_import = OperationImport()
+    extracted_items = batch_import.extract_items('sber', content)
+    print(extracted_items)
+    # return [
+    #     serialize(item) for item in extracted_items
+    # ]
+
 
 
 @router.post('/mock', status_code=status.HTTP_201_CREATED)
