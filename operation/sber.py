@@ -16,7 +16,7 @@ class TOperationRaw(typing.TypedDict):
     category: str
     ext_key: str
     origin: str
-    error: list[str]
+    errors: list[str]
     type: CategoryType
 
 
@@ -70,6 +70,6 @@ class SBerPDFExtractor(PDFExtractor):
             ext_key=ext_key,
             type=type,
             origin='\n'.join(row),
-            error=list(errors),
+            errors=list(errors),
         )
 

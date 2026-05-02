@@ -40,6 +40,8 @@ async def test_create_operation(authenticated_client, workspace_id):
     assert body["workspace_id"] == workspace_id
     assert "user_id" in body
     assert "created" in body
+    assert body["ext_key"] is None
+    assert body["ext_source"] is None
 
 @pytest.mark.asyncio
 async def test_create_operation_with_expence_category(authenticated_client, workspace_id):
@@ -339,17 +341,44 @@ async def test_patch_and_delete_operation(authenticated_client, workspace_id):
 
     pr = await authenticated_client.patch(
         f"/operation/{oid}",
-        json={"title": "New", "amount": -99},
+        json={"title": "New", "amount": -99, "ext_key": "imp-123", "ext_source": "sber"},
     )
     assert pr.status_code == 200
     assert pr.json()["title"] == "New"
     assert pr.json()["amount"] == -99
+    assert pr.json()["ext_key"] == "imp-123"
+    assert pr.json()["ext_source"] == "sber"
 
     dr = await authenticated_client.delete(f"/operation/{oid}")
     assert dr.status_code == 204
 
     gr = await authenticated_client.get(f"/operation/{oid}")
     assert gr.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_operation_with_external_fields(authenticated_client, workspace_id):
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="Imported")
+        )
+    ).json()["id"]
+
+    r = await authenticated_client.post(
+        "/operation",
+        json={
+            "workspace_id": workspace_id,
+            "category_id": cid,
+            "title": "Импорт",
+            "amount": -700,
+            "ext_key": "txn-777",
+            "ext_source": "sber",
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["ext_key"] == "txn-777"
+    assert body["ext_source"] == "sber"
 
 @pytest.mark.asyncio
 async def test_patch_expense_category(authenticated_client, workspace_id):

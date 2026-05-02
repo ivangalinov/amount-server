@@ -19,6 +19,8 @@ class Operation(Base):
         nullable=False,
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
+    ext_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    ext_source: Mapped[str | None] = mapped_column(String, nullable=True)
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),

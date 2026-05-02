@@ -29,6 +29,8 @@ class OperationCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=512)
     amount: int
     created: datetime | None = None
+    ext_key: str | None = Field(None, max_length=512)
+    ext_source: str | None = Field(None, max_length=255)
 
     @field_validator("amount", mode="before")
     @classmethod
@@ -45,6 +47,8 @@ class OperationUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=512)
     amount: int | None = None
     created: datetime | None = None
+    ext_key: str | None = Field(None, max_length=512)
+    ext_source: str | None = Field(None, max_length=255)
 
     @field_validator("amount", mode="before")
     @classmethod
@@ -68,6 +72,8 @@ def serialize(op: Operation) -> dict:
         "user_name": op.user.name,
         "workspace_id": op.workspace_id,
         "created": op.created.isoformat(),
+        "ext_key": op.ext_key,
+        "ext_source": op.ext_source,
     }
 
 
@@ -135,6 +141,8 @@ async def create_operation(
         amount=amount,
         user_id=current_user.id,
         created=created_at,
+        ext_key=body.ext_key,
+        ext_source=body.ext_source,
     )
     db.add(op)
     await db.commit()
@@ -240,10 +248,12 @@ async def batch_import(
     current_user: User = Depends(get_current_user)
 ):
     content = await file.read()
-    # print(co)
-    batch_import = OperationImport()
-    extracted_items = batch_import.extract_items('sber', content)
+    importer = OperationImport()
+    extracted_items = importer.extract_items(db, 'sber', content)
     print(extracted_items)
+    return dict(
+        items=extracted_items
+    )
     # return [
     #     serialize(item) for item in extracted_items
     # ]

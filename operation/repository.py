@@ -20,6 +20,7 @@ class ListFilter(typing.TypedDict):
     date_from: str | None
     date_to: str | None
     type: CategoryType | None
+    strict_search: str | None
 
 class Navigation(typing.TypedDict):
     limit: int
