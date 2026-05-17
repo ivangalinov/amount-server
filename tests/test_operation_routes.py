@@ -413,3 +413,83 @@ async def test_patch_expense_category(authenticated_client, workspace_id):
 
     gr = await authenticated_client.get(f"/operation/{oid}")
     assert gr.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bulk_create_operations(authenticated_client, workspace_id):
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="Bulk", type="expense")
+        )
+    ).json()["id"]
+
+    r = await authenticated_client.post(
+        "/operation/bulk",
+        json={
+            "workspace_id": workspace_id,
+            "items": [
+                {
+                    "category_id": cid,
+                    "title": "Bulk-1",
+                    "amount": 150,
+                    "ext_key": "bulk-1",
+                    "ext_source": "sber",
+                },
+                {
+                    "category_id": cid,
+                    "title": "Bulk-2",
+                    "amount": -90,
+                },
+            ],
+        },
+    )
+    assert r.status_code == 201
+    assert r.json()["created"] == 2
+
+    lr = await authenticated_client.get(
+        "/operation",
+        params={"workspace_id": workspace_id},
+    )
+    assert lr.status_code == 200
+    items = [i for i in lr.json()["items"] if i["title"] in {"Bulk-1", "Bulk-2"}]
+    assert len(items) == 2
+    by_title = {i["title"]: i for i in items}
+    assert by_title["Bulk-1"]["amount"] == -150
+    assert by_title["Bulk-1"]["ext_key"] == "bulk-1"
+    assert by_title["Bulk-1"]["ext_source"] == "sber"
+    assert by_title["Bulk-2"]["amount"] == -90
+
+
+@pytest.mark.asyncio
+async def test_bulk_create_forbidden_foreign_workspace(
+    authenticated_client, session_factory, workspace_id
+):
+    async with session_factory() as session:
+        from workspace.model import Workspace
+
+        ws = Workspace(name="Other bulk workspace")
+        session.add(ws)
+        await session.commit()
+        await session.refresh(ws)
+        foreign_workspace_id = ws.id
+
+    cid = (
+        await authenticated_client.post(
+            "/category", json=category_json(workspace_id, name="Bulk Forbidden")
+        )
+    ).json()["id"]
+
+    r = await authenticated_client.post(
+        "/operation/bulk",
+        json={
+            "workspace_id": foreign_workspace_id,
+            "items": [
+                {
+                    "category_id": cid,
+                    "title": "Not allowed",
+                    "amount": -10,
+                }
+            ],
+        },
+    )
+    assert r.status_code == 403

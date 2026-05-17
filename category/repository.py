@@ -1,12 +1,10 @@
 import typing
-from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, any_
 from .model import Category
 
 class ListResult(typing.TypedDict):
     items: list[Category]
-    # more: bool
 
 
 class CategoryRepository:
@@ -23,7 +21,7 @@ class CategoryRepository:
     async def get_list(self, list_filter: dict[str, object]) -> ListResult:
         condictions = []
         if strict_search := list_filter.get('strict_search'):
-            condictions.append(strict_search)
+            condictions.append(Category.name == any_(strict_search))
 
         filt = and_(*condictions)
         result = (await self.__db.execute(

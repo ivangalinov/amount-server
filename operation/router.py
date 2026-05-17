@@ -60,6 +60,30 @@ class OperationUpdate(BaseModel):
         return int(round(float(v)))  # type: ignore[arg-type]
 
 
+class OperationBulkCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    class Item(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        category_id: int
+        title: str = Field(..., min_length=1, max_length=512)
+        amount: int
+        created: datetime | None = None
+        ext_key: str | None = Field(None, max_length=512)
+        ext_source: str | None = Field(None, max_length=255)
+
+        @field_validator("amount", mode="before")
+        @classmethod
+        def amount_to_int(cls, v: object) -> int:
+            if isinstance(v, bool):
+                raise ValueError("invalid amount")
+            return int(round(float(v)))  # type: ignore[arg-type]
+
+    items: list[Item] = []
+    workspace_id: int
+
+
 def serialize(op: Operation) -> dict:
     return {
         "id": op.id,
@@ -243,21 +267,59 @@ async def delete_operation(
 
 @router.post('/import', status_code=status.HTTP_200_OK)
 async def batch_import(
+    source: str = Query(description='Источник импорта'),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     content = await file.read()
     importer = OperationImport()
-    extracted_items = importer.extract_items(db, 'sber', content)
-    print(extracted_items)
+    extracted_items = await importer.extract_items(db, source, content)
     return dict(
         items=extracted_items
     )
-    # return [
-    #     serialize(item) for item in extracted_items
-    # ]
 
+@router.post("/bulk", status_code=status.HTTP_201_CREATED)
+async def bulk_create(
+    body: OperationBulkCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await ensure_workspace_member(db, current_user, body.workspace_id)
+
+    operations = []
+    for item in body.items:
+        category = await _category_belongs_to_workspace(
+            db,
+            item.category_id,
+            body.workspace_id,
+        )
+        amount = item.amount
+        if category.type == CategoryType.EXPENSE.value and amount > 0:
+            amount *= -1
+        created_at = item.created
+        if created_at is not None and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        if created_at is None:
+            created_at = datetime.now(UTC)
+
+        operations.append(
+            Operation(
+                workspace_id=body.workspace_id,
+                category_id=item.category_id,
+                title=item.title,
+                amount=amount,
+                user_id=current_user.id,
+                created=created_at,
+                ext_key=item.ext_key,
+                ext_source=item.ext_source,
+            )
+        )
+    db.add_all(operations)
+    await db.commit()
+    return dict(
+        created=len(operations)
+    )
 
 
 @router.post('/mock', status_code=status.HTTP_201_CREATED)

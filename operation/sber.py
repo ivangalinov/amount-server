@@ -49,19 +49,14 @@ class SBerPDFExtractor(PDFExtractor):
         splitted_second = second.split(' ')
         date = splited_first[0]
         time = splited_first[1]
-        # amount = re.findall(amount_pattern, first)
-        # amount = amount[0]
-        # category = re.search(r'\d{2}:\d{2} (.+?) \d+,\d{2}', first)
-        # category = category.groups()
-        # print(category)
 
         category, amount, type = parse_category_and_amount(first)
-        print(category)
-        print(first)
         if not amount:
             errors.add('amount')
         if not category:
             errors.add('category')
+        if type == CategoryType.EXPENSE:
+            amount *= -1
         ext_key = splitted_second[1]
         return dict(
             date=parse_date(f'{date} {time}'),

@@ -30,7 +30,7 @@ extractor_factory = PDFExtractorFactory()
 extractor_factory.register('pdf.sber', SBerPDFExtractor())
 
 ext_categories_map = {
-'Автомобиль': 'Машина',
+ 'Автомобиль': 'Машина',
  'Все для дома': 'Дом',
  'Здоровье и красота': 'Здоровье',
  # 'Оплата по QR–коду СБП': '',
@@ -38,7 +38,7 @@ ext_categories_map = {
  # 'Перевод СБП',
  'Прочие операции': 'Прочее',
  'Прочие расходы': 'Прочее',
- 'Рестораны и кафе': 'Рестороны',
+ 'Рестораны и кафе': 'Рестораны',
  'Супермаркеты': 'Продукты'
 }
 
@@ -53,7 +53,7 @@ class CategoryMapper:
         self.__categories = {}
 
         self.__category_to_ext_map = {
-            value: key for value, key in ext_categories_map.items()
+            value: key for key, value in ext_categories_map.items()
         }
 
     async def fetch(self, ext_categories: list[str]):
@@ -62,9 +62,11 @@ class CategoryMapper:
             for ext in ext_categories
             if ext_categories_map.get(ext)
         ]
+
         categories = await self.__repo.get_list(
             dict(strict_search=search_string)
         )
+
         if not categories['items']:
             return
 
@@ -91,11 +93,11 @@ class OperationImport:
     # def __init__(self):
     #     pass
 
-    def extract_items(self, db: AsyncSession, source: TSourceType, filedata: bytes) -> list[ImportOperationResult]:
+    async def extract_items(self, db: AsyncSession, source: TSourceType, filedata: bytes) -> list[ImportOperationResult]:
         extractor = extractor_factory.resolve(f'pdf.{source}')
         extracted_items = extractor.execute(filedata)
         category_mapper = CategoryMapper(db)
-        category_mapper.fetch([item.get('category') for item in extracted_items])
+        await category_mapper.fetch([item.get('category') for item in extracted_items])
         result: list[ImportOperationResult] = []
         for item in extracted_items:
             if 'KOPILKA KARTA-VKLAD' in item['origin']:
