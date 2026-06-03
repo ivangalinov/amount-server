@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic (max 32 chars in alembic_version.version_num).
 revision: str = "0001_default_now_created"
-down_revision: str | None = None
+down_revision: str | None = "0000_initial_schema"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
