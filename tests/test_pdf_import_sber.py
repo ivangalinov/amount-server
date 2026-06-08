@@ -1,5 +1,8 @@
 import os
 import json
+
+import pytest
+
 from operation.import_pdf import SBerPDFExtractor
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -7,6 +10,14 @@ current_dir = os.path.dirname(os.path.realpath(__file__))
 mock_filepath = os.path.join(current_dir, 'resources', 'test_sber_import.pdf')
 
 ref_path = os.path.join(current_dir, 'resources', 'sber_pdf_ref.json')
+
+pytestmark = pytest.mark.skipif(
+    not os.path.isfile(mock_filepath) or not os.path.isfile(ref_path),
+    reason=(
+        'test fixtures missing: '
+        'tests/resources/test_sber_import.pdf and sber_pdf_ref.json'
+    ),
+)
 
 
 def get_ref() -> list[dict]:

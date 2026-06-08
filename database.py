@@ -10,7 +10,7 @@ class Base(DeclarativeBase):
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/amount",
+    "postgresql+asyncpg://postgres:e24c2a16@localhost:5432/amount",
 )
 
 # Логирование всех SQL в stdout (уровень INFO у логгера sqlalchemy.engine).
