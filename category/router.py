@@ -72,7 +72,7 @@ def serialize(item: Category) -> dict:
     return {
         "id": item.id,
         "name": item.name,
-        "type": item.type,
+        "type": item.type.value,
         "color": item.color,
         "limit": item.limit,
         "workspace_id": item.workspace_id,

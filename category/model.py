@@ -27,7 +27,12 @@ class Category(Base):
     limit: Mapped[str | None] = mapped_column(String, nullable=True)
 
     type: Mapped[CategoryType] = mapped_column(
-        SqlEnum(CategoryType, name="category_type"),
+        SqlEnum(
+            CategoryType,
+            name="category_type",
+            # PostgreSQL enum: 'income'/'expense'/'transfer', не имена INCOME/EXPENSE.
+            values_callable=lambda enums: [item.value for item in enums],
+        ),
         nullable=False,
     )
 
