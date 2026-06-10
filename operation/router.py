@@ -6,6 +6,7 @@ import random
 from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_current_user
@@ -106,7 +107,17 @@ async def _get_operation_for_user(
     user: User,
     operation_id: int,
 ) -> Operation:
-    r = await db.execute(select(Operation).where(Operation.id == operation_id))
+    r = await db.execute(
+    select(Operation)
+    .where(Operation.id == operation_id)
+    .options(
+        joinedload(Operation.user).load_only(User.name),
+        joinedload(Operation.category).load_only(
+            Category.name,
+            Category.color,
+        ),
+    )
+    )
     op = r.scalar_one_or_none()
     if op is None:
         raise HTTPException(
