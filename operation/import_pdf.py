@@ -67,10 +67,11 @@ class CategoryMapper:
             dict(strict_search=search_string)
         )
 
-        if not categories['items']:
+        if not (items := categories['items']):
             return
 
-        for category in categories['items']:
+
+        for category in items:
             self.__categories[self.__category_to_ext_map[category.name]] = category.id
 
     def get(self, ext_category: str) -> int | None:

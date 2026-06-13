@@ -336,7 +336,6 @@ async def bulk_create(
 @router.post('/mock', status_code=status.HTTP_201_CREATED)
 async def create_mocks(
     db: AsyncSession = Depends(get_db),
-    # current_user: User = Depends(get_current_user)
 ) -> None:
     category = (await db.execute(select(Category.id, Category.type).where(Category.type == CategoryType.INCOME).limit(1))).one()
     user: User = (await db.execute(select(User.id).limit(1))).one_or_none()

@@ -36,13 +36,13 @@ def parse_category_and_amount(raw_str: str) -> tuple[str, float, CategoryType]:
 
 class SBerPDFExtractor(PDFExtractor):
 
-    def check_row(self, row):
+    def check_row(self, row: str):
         return re.match(date_pattern, row)
 
     def union_callback(self, prev: str, current: str, buffer: list[str]):
         return len(buffer) == 1
     
-    def build_row(self, row) -> TOperationRaw:
+    def build_row(self, row: list[str, str]) -> TOperationRaw:
         errors = set()
         [first, second] = row
         splited_first = first.split(' ')
@@ -67,4 +67,3 @@ class SBerPDFExtractor(PDFExtractor):
             origin='\n'.join(row),
             errors=list(errors),
         )
-
