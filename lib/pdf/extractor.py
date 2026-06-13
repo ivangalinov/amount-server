@@ -11,27 +11,44 @@ class PDFExtractor:
     def execute(self, filedata: bytes) -> tuple:
         with pdfplumber.open(io.BytesIO(filedata)) as pdf:
             raw_result = ()
+            buffer = []
+            prev = None
             for page in pdf.pages:
-                text = page.extract_text().split('\n')
-                row_count = len(text) - 1
-                buffer = []
-                prev = None
-                for inx, row in enumerate(text):
-                    if not self.check_row(row):
+                if self.reset_buffer_on_page():
+                    buffer = []
+                    prev = None
+                text = (page.extract_text() or '').split('\n')
+                for row in text:
+                    if self.skip_row(row):
                         continue
-                    is_last = inx == row_count
-                    if prev and not self.union_callback(prev, row, buffer) or is_last:
-                        raw_result += (buffer.copy(),)
-                        buffer.clear()
-                    buffer.append(row)
-                    prev = row
-            
-            return tuple(map(lambda row: self.build_row(row), raw_result))
+                    if self.check_row(row):
+                        if buffer and not self.union_callback(prev, row, buffer):
+                            raw_result += (buffer.copy(),)
+                            buffer.clear()
+                        buffer.append(row)
+                        prev = row
+                    elif buffer and self.continuation_row(row, buffer):
+                        buffer.append(row)
+            if buffer and self.is_complete_group(buffer):
+                raw_result += (buffer.copy(),)
+            return tuple(map(self.build_row, raw_result))
+
+    def skip_row(self, row: str) -> bool:
+        return False
+
+    def continuation_row(self, row: str, buffer: list[str]) -> bool:
+        return False
+
+    def is_complete_group(self, buffer: list[str]) -> bool:
+        return bool(buffer)
+
+    def reset_buffer_on_page(self) -> bool:
+        return True
 
     def build_row(self, row: list[str]):
         return row
 
-    def union_callback(self, prev: str, current: str) -> bool:
+    def union_callback(self, prev: str, current: str, buffer: list[str]) -> bool:
         return False
 
     def check_row(self, row) -> bool:

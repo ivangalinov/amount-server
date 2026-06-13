@@ -7,8 +7,9 @@ from lib.pdf.extractor import PDFExtractor
 from category.model import CategoryType
 from category.repository import CategoryRepository
 from .sber import SBerPDFExtractor
+from .tinkoff import TTinkoffPDFExtractor
 
-TSourceType = typing.Literal['sber']
+TSourceType = typing.Literal['sber', 'tinkoff']
 
 class PDFExtractorFactory:
 
@@ -28,6 +29,7 @@ class PDFExtractorFactory:
 
 extractor_factory = PDFExtractorFactory()
 extractor_factory.register('pdf.sber', SBerPDFExtractor())
+extractor_factory.register('pdf.tinkoff', TTinkoffPDFExtractor())
 
 ext_categories_map = {
  'Автомобиль': 'Машина',
@@ -58,10 +60,12 @@ class CategoryMapper:
 
     async def fetch(self, ext_categories: list[str]):
         search_string = [
-            ext_categories_map.get(ext)
-            for ext in ext_categories
-            if ext_categories_map.get(ext)
+            mapped
+            for ext in dict.fromkeys(ext_categories)
+            if ext and (mapped := ext_categories_map.get(ext))
         ]
+        if not search_string:
+            return
 
         categories = await self.__repo.get_list(
             dict(strict_search=search_string)
@@ -70,11 +74,12 @@ class CategoryMapper:
         if not (items := categories['items']):
             return
 
-
         for category in items:
             self.__categories[self.__category_to_ext_map[category.name]] = category.id
 
-    def get(self, ext_category: str) -> int | None:
+    def get(self, ext_category: str | None) -> int | None:
+        if not ext_category:
+            return None
         return self.__categories.get(ext_category)
 
 
@@ -91,17 +96,18 @@ class ImportOperationResult(typing.TypedDict):
 
 class OperationImport:
 
-    # def __init__(self):
-    #     pass
-
     async def extract_items(self, db: AsyncSession, source: TSourceType, filedata: bytes) -> list[ImportOperationResult]:
         extractor = extractor_factory.resolve(f'pdf.{source}')
         extracted_items = extractor.execute(filedata)
         category_mapper = CategoryMapper(db)
-        await category_mapper.fetch([item.get('category') for item in extracted_items])
+        await category_mapper.fetch([
+            item['category'] for item in extracted_items if item.get('category')
+        ])
         result: list[ImportOperationResult] = []
         for item in extracted_items:
             if 'KOPILKA KARTA-VKLAD' in item['origin']:
+                continue
+            if 'Внутренний перевод на' in item['origin']:
                 continue
             if item['type'] == CategoryType.INCOME:
                 continue

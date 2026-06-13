@@ -13,7 +13,7 @@ category_and_amount_pattern = r'\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} (.+?) ([+-]?)(\d
 class TOperationRaw(typing.TypedDict):
     date: datetime.datetime
     amount: float
-    category: str
+    category: str | None
     ext_key: str
     origin: str
     errors: list[str]
@@ -41,6 +41,9 @@ class SBerPDFExtractor(PDFExtractor):
 
     def union_callback(self, prev: str, current: str, buffer: list[str]):
         return len(buffer) == 1
+
+    def is_complete_group(self, buffer: list[str]) -> bool:
+        return len(buffer) == 2
     
     def build_row(self, row: list[str, str]) -> TOperationRaw:
         errors = set()
