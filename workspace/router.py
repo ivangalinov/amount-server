@@ -143,10 +143,10 @@ async def get_workspace_users(
     }
 
 
-@router.post('/members', status_code=status.HTTP_201_CREATED)
-async def add_workspace_member(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    body = await parse_workspace_member_add(request)
-    return await add_workspace_member_impl(db, body.workspace_id, str(body.email))
+# @router.post('/members', status_code=status.HTTP_201_CREATED)
+# async def add_workspace_member(
+#     request: Request,
+#     db: AsyncSession = Depends(get_db),
+# ) -> dict:
+#     body = await parse_workspace_member_add(request)
+#     return await add_workspace_member_impl(db, body.workspace_id, str(body.email))
